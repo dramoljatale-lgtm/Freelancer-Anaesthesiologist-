@@ -1,0 +1,115 @@
+{
+  "project_context": {
+    "domain": "Medical Utility & Finance (Anaesthesiologists)",
+    "app_type": "hybrid_fullstack (React Native Expo logic, implemented via Tailwind/React)",
+    "theme": "Light",
+    "archetype": "1 (Organic & Earthy)",
+    "vibe": "Calm, trusted, highly legible, professional.",
+    "key_functionalities": [
+      "Cases List View",
+      "Add Case Form",
+      "ISA-RVG Fee Calculator Modal",
+      "Fee Breakdown Display",
+      "Use This Amount Auto-fill",
+      "Download CSV Export",
+      "Generate PDF Bill Receipt",
+      "Case Detail View"
+    ]
+  },
+  "color_palette": {
+    "background_base": "#F7F7F8",
+    "surface": "#FFFFFF",
+    "primary": "#4A7C59",
+    "primary_hover": "#3E6B4A",
+    "primary_foreground": "#FFFFFF",
+    "secondary": "#EAECEB",
+    "secondary_foreground": "#2C3E30",
+    "accent_warning": "#D95D39",
+    "accent_warning_foreground": "#FFFFFF",
+    "text_main": "#1A201C",
+    "text_muted": "#6B7280",
+    "border": "#E5E7EB",
+    "glass_surface": "bg-white/90 backdrop-blur-xl"
+  },
+  "typography": {
+    "strategy": "Soft Utility (Friendly Headings + Clean Sans Body)",
+    "fonts": {
+      "headings": "Manrope, sans-serif",
+      "body": "IBM Plex Sans, sans-serif",
+      "monospace": "JetBrains Mono, monospace"
+    },
+    "scales": {
+      "h1": "text-3xl sm:text-4xl font-extrabold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl font-semibold",
+      "h4": "text-lg font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-text_muted"
+    }
+  },
+  "layout_and_spacing": {
+    "strategy": "Generous Spacing Philosophy with Control Room Density for the Calculator.",
+    "container_padding": "p-4 sm:p-6 md:p-8",
+    "section_gap": "gap-6 sm:gap-8",
+    "form_item_spacing": "space-y-4",
+    "calculator_grid": "grid grid-cols-1 gap-4 md:grid-cols-2",
+    "borders": "rounded-2xl border border-border/60",
+    "shadows": "shadow-sm"
+  },
+  "component_guidelines": {
+    "buttons": {
+      "primary": "bg-[#4A7C59] text-white hover:bg-[#3E6B4A] rounded-xl px-6 py-3 font-semibold transition-transform active:scale-95",
+      "secondary": "bg-[#EAECEB] text-[#2C3E30] hover:bg-[#D9DDDB] rounded-xl px-6 py-3 font-medium transition-transform active:scale-95",
+      "calculate_isa_fee": "w-full bg-[#EAECEB] border border-[#4A7C59]/20 text-[#4A7C59] font-semibold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-[#4A7C59]/10 transition-colors"
+    },
+    "inputs": {
+      "default": "w-full h-12 bg-white border border-border rounded-xl px-4 text-text_main focus:ring-2 focus:ring-[#4A7C59] focus:border-[#4A7C59] transition-all",
+      "labels": "block text-sm font-medium text-text_main mb-1.5"
+    },
+    "calculator_modal": {
+      "type": "Bottom Sheet on Mobile, Centered Dialog on Desktop",
+      "header": "Sticky top, bg-white/90 backdrop-blur-md, border-b border-border p-4",
+      "content": "p-4 space-y-6 max-h-[70vh] overflow-y-auto",
+      "footer": "Sticky bottom, bg-white p-4 border-t border-border shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]",
+      "breakdown_box": "bg-[#F7F7F8] p-4 rounded-xl border border-border/50 mt-6 space-y-2",
+      "total_fee_display": "text-3xl font-bold text-[#4A7C59] font-mono tracking-tight"
+    },
+    "toggles": {
+      "container": "flex items-center justify-between p-4 border border-border rounded-xl bg-white",
+      "switch_active": "bg-[#4A7C59]"
+    }
+  },
+  "testing_attributes": [
+    "data-testid=\"calculate-isa-fee-btn\"",
+    "data-testid=\"city-tier-select\"",
+    "data-testid=\"surgical-complexity-select\"",
+    "data-testid=\"duration-input\"",
+    "data-testid=\"asa-status-toggle\"",
+    "data-testid=\"emergency-toggle\"",
+    "data-testid=\"case-cancelled-toggle\"",
+    "data-testid=\"use-fee-amount-btn\"",
+    "data-testid=\"download-csv-btn\"",
+    "data-testid=\"generate-pdf-btn\""
+  ],
+  "image_urls": {
+    "backgrounds": [
+      {
+        "url": "https://images.unsplash.com/photo-1762361962969-9e1484e8c8b5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwzfHxtZWRpY2FsJTIwZG9jdG9yJTIwYWJzdHJhY3QlMjBjbGVhbnxlbnwwfHx8fDE3NzUyMDkwMTJ8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract neutral background with curved shapes",
+        "category": "empty_state_background"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build standard React components using Tailwind CSS.",
+    "Since the target is hybrid_fullstack/Expo, simulate mobile UX with mobile-first Tailwind design (max-w-md mx-auto for desktop container, or full width with bottom navigation).",
+    "Use Phosphor Icons (or lucide-react) for medical and UI icons (e.g., FilePdf, DownloadSimple, Calculator).",
+    "Ensure 'Calculate ISA-RVG Standard Fee' button is prominent and sits next to or directly above the Anaesthesia Fees input.",
+    "Implement the math logic exactly as specified: Base + Time + ASA, then * Tier, then * 1.3 if emergency.",
+    "Case Cancelled toggle forces the logic to still calculate 100% of the standard fee (ensure UI clearly shows this override if applicable).",
+    "The Modal must have a 'Use This Amount' button that closes the modal and auto-fills the main form's Anaesthesia Fees input.",
+    "Never use fully transparent headers; use the glass_surface definition.",
+    "Ensure input contrasts meet APCA/WCAG standards. Do not use Inter for headings, strictly use Manrope."
+  ]
+}
