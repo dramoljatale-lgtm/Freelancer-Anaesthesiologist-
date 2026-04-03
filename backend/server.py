@@ -51,6 +51,7 @@ class CaseCreate(BaseModel):
     anaesthesia_type: str = "General"
     anaesthesia_fees: float = 0
     notes: str = ""
+    payment_status: str = "pending"
     isa_rvg_details: Optional[ISARVGDetails] = None
 
 
@@ -66,8 +67,13 @@ class CaseResponse(BaseModel):
     anaesthesia_type: str
     anaesthesia_fees: float
     notes: str
+    payment_status: str = "pending"
     isa_rvg_details: Optional[ISARVGDetails] = None
     created_at: str
+
+
+class PaymentStatusUpdate(BaseModel):
+    payment_status: str
 
 
 @api_router.get("/")
@@ -128,6 +134,61 @@ async def delete_case(case_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     return {"message": "Case deleted"}
+
+
+@api_router.patch("/cases/{case_id}/payment-status")
+async def update_payment_status(case_id: str, update: PaymentStatusUpdate):
+    if update.payment_status not in ["paid", "pending"]:
+        raise HTTPException(status_code=400, detail="Status must be 'paid' or 'pending'")
+    result = await db.cases.update_one(
+        {"id": case_id},
+        {"$set": {"payment_status": update.payment_status}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return {"message": "Status updated", "payment_status": update.payment_status}
+
+
+@api_router.get("/analytics")
+async def get_analytics():
+    cases = await db.cases.find({}, {"_id": 0}).to_list(10000)
+    now = datetime.now(timezone.utc)
+    current_month = now.month
+    current_year = now.year
+    monthly = {}
+    for c in cases:
+        try:
+            parts = c.get("date", "").split("/")
+            if len(parts) == 3:
+                month, year = int(parts[1]), int(parts[2])
+            else:
+                continue
+        except (ValueError, IndexError):
+            continue
+        key = f"{year}-{month:02d}"
+        if key not in monthly:
+            monthly[key] = {"month": key, "total_cases": 0, "total_fees": 0, "received": 0, "pending": 0}
+        fees = c.get("anaesthesia_fees", 0)
+        status = c.get("payment_status", "pending")
+        monthly[key]["total_cases"] += 1
+        monthly[key]["total_fees"] += fees
+        if status == "paid":
+            monthly[key]["received"] += fees
+        else:
+            monthly[key]["pending"] += fees
+    cm_key = f"{current_year}-{current_month:02d}"
+    current_month_stats = monthly.get(cm_key, {"month": cm_key, "total_cases": 0, "total_fees": 0, "received": 0, "pending": 0})
+    year_stats = {"total_cases": 0, "total_fees": 0, "received": 0, "pending": 0}
+    for key, val in monthly.items():
+        if key.startswith(str(current_year)):
+            for f in ["total_cases", "total_fees", "received", "pending"]:
+                year_stats[f] += val[f]
+    sorted_monthly = sorted(monthly.values(), key=lambda x: x["month"], reverse=True)
+    return {
+        "current_month": current_month_stats,
+        "current_year": year_stats,
+        "monthly_breakdown": sorted_monthly,
+    }
 
 
 app.include_router(api_router)

@@ -34,6 +34,7 @@ const getDefaultDate = () => {
 export default function AddCase() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [savingStatus, setSavingStatus] = useState('');
   const [calcVisible, setCalcVisible] = useState(false);
 
   const [patientName, setPatientName] = useState('');
@@ -54,12 +55,13 @@ export default function AddCase() {
     setCalcVisible(false);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (paymentStatus: string) => {
     if (!patientName.trim()) return Alert.alert('Required', 'Patient name is required');
     if (!surgeryName.trim()) return Alert.alert('Required', 'Surgery name is required');
     if (!fees.trim() || isNaN(parseFloat(fees))) return Alert.alert('Required', 'Enter valid anaesthesia fees');
 
     setSaving(true);
+    setSavingStatus(paymentStatus);
     try {
       const res = await fetch(`${BACKEND_URL}/api/cases`, {
         method: 'POST',
@@ -75,6 +77,7 @@ export default function AddCase() {
           anaesthesia_type: anaesthesiaType,
           anaesthesia_fees: parseFloat(fees),
           notes: notes.trim(),
+          payment_status: paymentStatus,
           isa_rvg_details: isaDetails,
         }),
       });
@@ -84,6 +87,7 @@ export default function AddCase() {
       Alert.alert('Error', 'Failed to save case. Please try again.');
     } finally {
       setSaving(false);
+      setSavingStatus('');
     }
   };
 
@@ -159,24 +163,24 @@ export default function AddCase() {
             placeholderTextColor="#9CA3AF"
           />
 
-          {/* ISA-RVG Button */}
+          {/* Standard Fee Calculator Button */}
           <TouchableOpacity testID="calculate-isa-fee-btn" style={st.calcBtn} onPress={() => setCalcVisible(true)} activeOpacity={0.7}>
             <View style={st.calcIcon}>
               <Ionicons name="calculator" size={18} color="#4A7C59" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={st.calcBtnTitle}>Calculate ISA-RVG Standard Fee</Text>
-              <Text style={st.calcBtnSub}>Compare with ISA guidelines</Text>
+              <Text style={st.calcBtnTitle}>Calculate Standard Fee</Text>
+              <Text style={st.calcBtnSub}>ISA-RVG based guidelines</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#4A7C59" />
           </TouchableOpacity>
 
-          {/* ISA Badge */}
+          {/* Standard Fee Badge */}
           {isaDetails && (
             <View style={st.isaBadge}>
               <View style={st.isaBadgeTop}>
                 <Ionicons name="checkmark-circle" size={18} color="#4A7C59" />
-                <Text style={st.isaBadgeTitle}>ISA-RVG Fee Applied</Text>
+                <Text style={st.isaBadgeTitle}>Standard Fee Applied</Text>
               </View>
               <Text style={st.isaBadgeDetail}>
                 {isaDetails.total_units} units × ₹{formatINR(isaDetails.rate_per_unit)} = ₹{formatINR(isaDetails.base_fee)}
@@ -198,20 +202,41 @@ export default function AddCase() {
             multiline
           />
 
-          {/* Save */}
-          <TouchableOpacity
-            testID="save-case-btn"
-            style={[st.saveBtn, saving && { opacity: 0.6 }]}
-            onPress={handleSave}
-            disabled={saving}
-            activeOpacity={0.8}
-          >
-            {saving ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={st.saveBtnText}>Save Case</Text>
-            )}
-          </TouchableOpacity>
+          {/* Save Buttons */}
+          <View style={st.saveBtns}>
+            <TouchableOpacity
+              testID="save-paid-btn"
+              style={[st.savePaidBtn, saving && savingStatus === 'paid' && { opacity: 0.6 }]}
+              onPress={() => handleSave('paid')}
+              disabled={saving}
+              activeOpacity={0.8}
+            >
+              {saving && savingStatus === 'paid' ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                  <Text style={st.savePaidText}>Save — Paid</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="save-pending-btn"
+              style={[st.savePendingBtn, saving && savingStatus === 'pending' && { opacity: 0.6 }]}
+              onPress={() => handleSave('pending')}
+              disabled={saving}
+              activeOpacity={0.8}
+            >
+              {saving && savingStatus === 'pending' ? (
+                <ActivityIndicator color="#E65100" />
+              ) : (
+                <>
+                  <Ionicons name="time-outline" size={18} color="#E65100" />
+                  <Text style={st.savePendingText}>Save — Pending</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
 
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -289,13 +314,27 @@ const st = StyleSheet.create({
   isaBadgeTitle: { fontSize: 14, fontWeight: '700', color: '#4A7C59' },
   isaBadgeDetail: { fontSize: 13, color: '#2C3E30', lineHeight: 18 },
   isaBadgeFee: { fontSize: 16, fontWeight: '800', color: '#4A7C59', marginTop: 4 },
-  saveBtn: {
+  saveBtns: { marginTop: 28, gap: 12 },
+  savePaidBtn: {
     backgroundColor: '#4A7C59',
     borderRadius: 14,
     paddingVertical: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 28,
+    gap: 8,
   },
-  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  savePaidText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  savePendingBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E65100',
+    borderRadius: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  savePendingText: { fontSize: 16, fontWeight: '700', color: '#E65100' },
 });

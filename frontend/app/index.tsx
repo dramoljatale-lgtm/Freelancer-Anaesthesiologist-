@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, Platform, RefreshControl
+  ActivityIndicator, Alert, Platform, RefreshControl, ScrollView
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,9 +24,27 @@ interface CaseItem {
   anaesthesia_type: string;
   anaesthesia_fees: number;
   notes: string;
+  payment_status: string;
   isa_rvg_details: any;
   created_at: string;
 }
+
+const getToday = () => {
+  const d = new Date();
+  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+};
+
+const getTimeFromISO = (iso: string) => {
+  try {
+    const d = new Date(iso);
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 || 12}:${m.toString().padStart(2, '0')} ${ampm}`;
+  } catch {
+    return '';
+  }
+};
 
 export default function CasesList() {
   const router = useRouter();
@@ -50,14 +68,16 @@ export default function CasesList() {
 
   useFocusEffect(useCallback(() => { fetchCases(); }, []));
 
-  const totalFees = cases.reduce((sum, c) => sum + (c.anaesthesia_fees || 0), 0);
+  const today = getToday();
+  const todaysCases = cases.filter(c => c.date === today);
+  const totalReceived = cases.reduce((s, c) => s + (c.payment_status === 'paid' ? c.anaesthesia_fees : 0), 0);
+  const totalPending = cases.reduce((s, c) => s + (c.payment_status !== 'paid' ? c.anaesthesia_fees : 0), 0);
 
   const handleCSVDownload = async () => {
     setCsvLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/cases/export/csv`);
       const csvText = await res.text();
-
       if (Platform.OS === 'web') {
         const blob = new Blob([csvText], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
@@ -73,42 +93,108 @@ export default function CasesList() {
         await FileSystem.writeAsStringAsync(fileUri, csvText);
         await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export Cases CSV' });
       }
-    } catch (err) {
+    } catch {
       Alert.alert('Error', 'Failed to export CSV');
     } finally {
       setCsvLoading(false);
     }
   };
 
-  const renderCase = ({ item }: { item: CaseItem }) => (
-    <TouchableOpacity
-      testID={`case-card-${item.id}`}
-      style={styles.card}
-      onPress={() => router.push(`/case/${item.id}`)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardTop}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.patientName}>{item.patient_name}</Text>
-          <Text style={styles.cardDate}>{item.date}</Text>
+  const renderCase = ({ item }: { item: CaseItem }) => {
+    const isPaid = item.payment_status === 'paid';
+    return (
+      <TouchableOpacity
+        testID={`case-card-${item.id}`}
+        style={styles.card}
+        onPress={() => router.push(`/case/${item.id}`)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cardTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.patientName}>{item.patient_name}</Text>
+            <Text style={styles.cardDate}>{item.date}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <View style={styles.feeBadge}>
+              <Text style={styles.feeText}>₹{formatINR(item.anaesthesia_fees)}</Text>
+            </View>
+            <View style={[styles.statusBadge, isPaid ? styles.statusPaid : styles.statusPending]}>
+              <View style={[styles.statusDot, { backgroundColor: isPaid ? '#4A7C59' : '#E65100' }]} />
+              <Text style={[styles.statusText, { color: isPaid ? '#4A7C59' : '#E65100' }]}>
+                {isPaid ? 'Paid' : 'Pending'}
+              </Text>
+            </View>
+          </View>
         </View>
-        <View style={styles.feeBadge}>
-          <Text style={styles.feeText}>₹{formatINR(item.anaesthesia_fees)}</Text>
+        <View style={styles.cardBottom}>
+          <Text style={styles.surgeryText}>{item.surgery_name}</Text>
+          <Text style={styles.metaText}>
+            {item.hospital}{item.hospital && item.anaesthesia_type ? ' · ' : ''}{item.anaesthesia_type}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderHeader = () => (
+    <View>
+      {/* Stats */}
+      <View style={styles.stats}>
+        <View style={styles.statCard}>
+          <Text style={styles.statVal}>{cases.length}</Text>
+          <Text style={styles.statLbl}>Cases</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}>
+          <Text style={[styles.statVal, { color: '#4A7C59' }]}>₹{formatINR(totalReceived)}</Text>
+          <Text style={styles.statLbl}>Received</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: '#FFF3E0' }]}>
+          <Text style={[styles.statVal, { color: '#E65100' }]}>₹{formatINR(totalPending)}</Text>
+          <Text style={styles.statLbl}>Pending</Text>
         </View>
       </View>
-      <View style={styles.cardBottom}>
-        <Text style={styles.surgeryText}>{item.surgery_name}</Text>
-        <Text style={styles.metaText}>
-          {item.hospital}{item.hospital && item.anaesthesia_type ? ' · ' : ''}{item.anaesthesia_type}
-        </Text>
-      </View>
-      {item.isa_rvg_details && (
-        <View style={styles.isaBadge}>
-          <Ionicons name="calculator-outline" size={12} color="#4A7C59" />
-          <Text style={styles.isaBadgeText}>ISA-RVG Calculated</Text>
+
+      {/* Today's Roster */}
+      {todaysCases.length > 0 && (
+        <View style={styles.rosterSection}>
+          <View style={styles.rosterHeader}>
+            <Text style={styles.rosterTitle}>Today's Roster</Text>
+            <Text style={styles.rosterCount}>{todaysCases.length} case{todaysCases.length > 1 ? 's' : ''}</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rosterScroll}>
+            {todaysCases.map(c => (
+              <TouchableOpacity
+                key={c.id}
+                testID={`roster-card-${c.id}`}
+                style={styles.rosterCard}
+                onPress={() => router.push(`/case/${c.id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.rosterTop}>
+                  <Ionicons name="business-outline" size={14} color="#4A7C59" />
+                  <Text style={styles.rosterHospital} numberOfLines={1}>{c.hospital || 'Hospital'}</Text>
+                </View>
+                <Text style={styles.rosterPatient} numberOfLines={1}>{c.patient_name}</Text>
+                <Text style={styles.rosterSurgeon} numberOfLines={1}>Dr. {c.surgeon_name || '-'}</Text>
+                <View style={styles.rosterBottom}>
+                  <Text style={styles.rosterTime}>{getTimeFromISO(c.created_at)}</Text>
+                  <View style={[styles.rosterStatus, c.payment_status === 'paid' ? styles.statusPaid : styles.statusPending]}>
+                    <Text style={{ fontSize: 10, fontWeight: '600', color: c.payment_status === 'paid' ? '#4A7C59' : '#E65100' }}>
+                      {c.payment_status === 'paid' ? 'PAID' : 'DUE'}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       )}
-    </TouchableOpacity>
+
+      {/* Section Header */}
+      <View style={styles.allCasesHeader}>
+        <Text style={styles.allCasesTitle}>All Cases</Text>
+      </View>
+    </View>
   );
 
   if (loading) {
@@ -125,43 +211,35 @@ export default function CasesList() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>My Cases</Text>
-          <Text style={styles.headerSub}>
-            {cases.length} case{cases.length !== 1 ? 's' : ''} logged
-          </Text>
+          <Text style={styles.headerSub}>{cases.length} case{cases.length !== 1 ? 's' : ''} logged</Text>
         </View>
-        {cases.length > 0 && (
+        <View style={styles.headerActions}>
           <TouchableOpacity
-            testID="download-csv-btn"
-            style={styles.csvBtn}
-            onPress={handleCSVDownload}
-            disabled={csvLoading}
-            activeOpacity={0.7}
+            testID="analytics-btn"
+            style={styles.headerBtn}
+            onPress={() => router.push('/analytics')}
           >
-            {csvLoading ? (
-              <ActivityIndicator size="small" color="#4A7C59" />
-            ) : (
-              <>
-                <Ionicons name="download-outline" size={17} color="#4A7C59" />
-                <Text style={styles.csvBtnText}>CSV</Text>
-              </>
-            )}
+            <Ionicons name="bar-chart-outline" size={18} color="#4A7C59" />
           </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Stats */}
-      {cases.length > 0 && (
-        <View style={styles.stats}>
-          <View style={styles.statCard}>
-            <Text style={styles.statVal}>{cases.length}</Text>
-            <Text style={styles.statLbl}>Total Cases</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#F0F7F2' }]}>
-            <Text style={[styles.statVal, { color: '#4A7C59' }]}>₹{formatINR(totalFees)}</Text>
-            <Text style={styles.statLbl}>Total Earnings</Text>
-          </View>
+          {cases.length > 0 && (
+            <TouchableOpacity
+              testID="download-csv-btn"
+              style={styles.csvBtn}
+              onPress={handleCSVDownload}
+              disabled={csvLoading}
+            >
+              {csvLoading ? (
+                <ActivityIndicator size="small" color="#4A7C59" />
+              ) : (
+                <>
+                  <Ionicons name="download-outline" size={17} color="#4A7C59" />
+                  <Text style={styles.csvBtnText}>CSV</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
-      )}
+      </View>
 
       {/* List / Empty */}
       {cases.length === 0 ? (
@@ -185,14 +263,11 @@ export default function CasesList() {
           data={cases}
           renderItem={renderCase}
           keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); fetchCases(); }}
-              tintColor="#4A7C59"
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchCases(); }} tintColor="#4A7C59" />
           }
         />
       )}
@@ -220,10 +295,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
   headerTitle: { fontSize: 28, fontWeight: '800', color: '#1A201C', letterSpacing: -0.5 },
   headerSub: { fontSize: 14, color: '#6B7280', marginTop: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EAECEB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   csvBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -234,23 +318,64 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   csvBtnText: { fontSize: 14, fontWeight: '600', color: '#4A7C59' },
-  stats: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 16 },
+  stats: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   statCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  statVal: { fontSize: 22, fontWeight: '800', color: '#1A201C' },
-  statLbl: { fontSize: 12, color: '#6B7280', marginTop: 4 },
+  statVal: { fontSize: 18, fontWeight: '800', color: '#1A201C' },
+  statLbl: { fontSize: 11, color: '#6B7280', marginTop: 3 },
+  rosterSection: { marginBottom: 16 },
+  rosterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  rosterTitle: { fontSize: 15, fontWeight: '700', color: '#1A201C' },
+  rosterCount: { fontSize: 13, color: '#6B7280' },
+  rosterScroll: { gap: 10 },
+  rosterCard: {
+    width: 160,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  rosterTop: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
+  rosterHospital: { fontSize: 12, color: '#4A7C59', fontWeight: '600', flex: 1 },
+  rosterPatient: { fontSize: 14, fontWeight: '700', color: '#1A201C', marginBottom: 2 },
+  rosterSurgeon: { fontSize: 12, color: '#6B7280' },
+  rosterBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  rosterTime: { fontSize: 12, fontWeight: '600', color: '#1A201C' },
+  rosterStatus: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  allCasesHeader: { marginBottom: 10 },
+  allCasesTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   list: { paddingHorizontal: 20, paddingBottom: 100 },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
@@ -259,19 +384,22 @@ const styles = StyleSheet.create({
   cardDate: { fontSize: 13, color: '#6B7280', marginTop: 2 },
   feeBadge: { backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   feeText: { fontSize: 15, fontWeight: '700', color: '#4A7C59' },
-  cardBottom: { marginTop: 10 },
-  surgeryText: { fontSize: 14, fontWeight: '500', color: '#1A201C' },
-  metaText: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  isaBadge: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 6,
   },
-  isaBadgeText: { fontSize: 12, color: '#4A7C59', fontWeight: '500' },
+  statusPaid: { backgroundColor: '#E8F5E9' },
+  statusPending: { backgroundColor: '#FFF3E0' },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 11, fontWeight: '600' },
+  cardBottom: { marginTop: 10 },
+  surgeryText: { fontSize: 14, fontWeight: '500', color: '#1A201C' },
+  metaText: { fontSize: 13, color: '#6B7280', marginTop: 2 },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
   emptyIcon: {
     width: 88,

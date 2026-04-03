@@ -24,6 +24,7 @@ interface CaseData {
   anaesthesia_type: string;
   anaesthesia_fees: number;
   notes: string;
+  payment_status: string;
   isa_rvg_details: any;
   created_at: string;
 }
@@ -34,21 +35,38 @@ export default function CaseDetail() {
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(false);
 
-  useEffect(() => {
-    fetchCase();
-  }, [id]);
+  useEffect(() => { fetchCase(); }, [id]);
 
   const fetchCase = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/cases/${id}`);
       if (!res.ok) throw new Error('Not found');
-      const data = await res.json();
-      setCaseData(data);
+      setCaseData(await res.json());
     } catch {
       Alert.alert('Error', 'Case not found');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async () => {
+    if (!caseData) return;
+    const newStatus = caseData.payment_status === 'paid' ? 'pending' : 'paid';
+    setStatusLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/cases/${id}/payment-status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_status: newStatus }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setCaseData({ ...caseData, payment_status: newStatus });
+    } catch {
+      Alert.alert('Error', 'Failed to update status');
+    } finally {
+      setStatusLoading(false);
     }
   };
 
@@ -74,7 +92,7 @@ export default function CaseDetail() {
     const isa = c.isa_rvg_details;
     const isaSection = isa ? `
       <div class="section">
-        <div class="section-title">ISA-RVG Fee Calculation</div>
+        <div class="section-title">Standard Fee Calculation (ISA-RVG)</div>
         <div class="info-row"><span class="lbl">City Tier</span><span class="val">${isa.city_tier}</span></div>
         <div class="info-row"><span class="lbl">Surgical Complexity</span><span class="val">${isa.surgical_complexity}</span></div>
         <div class="info-row"><span class="lbl">Duration</span><span class="val">${isa.duration_minutes} minutes</span></div>
@@ -84,9 +102,8 @@ export default function CaseDetail() {
         <div class="info-row total-row"><span class="lbl bold">Total Units</span><span class="val bold">${isa.total_units}</span></div>
         <div class="info-row"><span class="lbl">Rate per Unit</span><span class="val">${isa.rate_per_unit}</span></div>
         ${isa.emergency ? '<div class="info-row"><span class="lbl emergency">Emergency Surcharge</span><span class="val emergency">+30%</span></div>' : ''}
-        <div class="info-row total-row"><span class="lbl bold green">ISA-RVG Standard Fee</span><span class="val bold green">${formatINR(isa.final_fee)}</span></div>
-      </div>
-    ` : '';
+        <div class="info-row total-row"><span class="lbl bold green">Standard Fee</span><span class="val bold green">${formatINR(isa.final_fee)}</span></div>
+      </div>` : '';
 
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -96,14 +113,14 @@ body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#1A201C;paddi
 .header{text-align:center;padding-bottom:20px;border-bottom:3px solid #4A7C59;margin-bottom:24px}
 .header h1{font-size:20px;color:#4A7C59;letter-spacing:2px;text-transform:uppercase}
 .header p{color:#6B7280;font-size:12px;margin-top:4px}
+.status-badge{display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;margin-top:8px}
+.status-paid{background:#E8F5E9;color:#4A7C59}
+.status-pending{background:#FFF3E0;color:#E65100}
 .section{margin-bottom:20px}
 .section-title{font-size:13px;font-weight:700;color:#4A7C59;text-transform:uppercase;letter-spacing:1px;padding-bottom:8px;border-bottom:1px solid #E5E7EB;margin-bottom:10px}
 .info-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
-.lbl{color:#6B7280}
-.val{font-weight:600}
-.bold{font-weight:700;color:#1A201C}
-.green{color:#4A7C59!important}
-.emergency{color:#D95D39!important}
+.lbl{color:#6B7280}.val{font-weight:600}
+.bold{font-weight:700;color:#1A201C}.green{color:#4A7C59!important}.emergency{color:#D95D39!important}
 .total-row{border-top:1px solid #E5E7EB;margin-top:6px;padding-top:8px}
 .fee-box{background:#E8F5E9;border-radius:12px;padding:20px;text-align:center;margin:20px 0}
 .fee-box .label{font-size:12px;color:#4A7C59;font-weight:600}
@@ -113,6 +130,7 @@ body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#1A201C;paddi
 <div class="header">
   <h1>Anaesthesia Fee Receipt</h1>
   <p>${c.hospital || 'Hospital'}</p>
+  <span class="status-badge ${c.payment_status === 'paid' ? 'status-paid' : 'status-pending'}">${c.payment_status === 'paid' ? 'PAID' : 'PENDING'}</span>
 </div>
 <div class="section">
   <div class="section-title">Patient Information</div>
@@ -182,10 +200,10 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
 
   const c = caseData;
   const isa = c.isa_rvg_details;
+  const isPaid = c.payment_status === 'paid';
 
   return (
     <SafeAreaView style={st.container} edges={['top']}>
-      {/* Header */}
       <View style={st.headerBar}>
         <TouchableOpacity testID="detail-back-btn" onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Ionicons name="chevron-back" size={24} color="#1A201C" />
@@ -201,13 +219,31 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
         <View style={st.feeHero}>
           <Text style={st.feeHeroLabel}>Anaesthesia Fee</Text>
           <Text style={st.feeHeroAmount}>₹{formatINR(c.anaesthesia_fees)}</Text>
-          {isa && (
-            <View style={st.isaTag}>
-              <Ionicons name="calculator" size={12} color="#4A7C59" />
-              <Text style={st.isaTagText}>ISA-RVG Standard</Text>
-            </View>
-          )}
+          <View style={[st.statusBadge, isPaid ? st.statusPaid : st.statusPending]}>
+            <View style={[st.statusDot, { backgroundColor: isPaid ? '#fff' : '#fff' }]} />
+            <Text style={st.statusBadgeText}>{isPaid ? 'PAID' : 'PENDING'}</Text>
+          </View>
         </View>
+
+        {/* Toggle Payment Status */}
+        <TouchableOpacity
+          testID="toggle-payment-status-btn"
+          style={[st.toggleStatusBtn, isPaid ? st.toggleToPending : st.toggleToPaid]}
+          onPress={handleToggleStatus}
+          disabled={statusLoading}
+          activeOpacity={0.8}
+        >
+          {statusLoading ? (
+            <ActivityIndicator color={isPaid ? '#E65100' : '#4A7C59'} />
+          ) : (
+            <>
+              <Ionicons name={isPaid ? 'time-outline' : 'checkmark-circle'} size={18} color={isPaid ? '#E65100' : '#4A7C59'} />
+              <Text style={[st.toggleStatusText, { color: isPaid ? '#E65100' : '#4A7C59' }]}>
+                {isPaid ? 'Mark as Pending' : 'Mark as Paid'}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
 
         {/* Patient Info */}
         <View style={st.card}>
@@ -227,12 +263,12 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
           <InfoRow label="Anaesthesia" value={c.anaesthesia_type} />
         </View>
 
-        {/* ISA-RVG Breakdown */}
+        {/* Standard Fee Breakdown */}
         {isa && (
           <View style={[st.card, { borderColor: '#4A7C59', borderWidth: 1.5 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <Ionicons name="calculator" size={16} color="#4A7C59" />
-              <Text style={[st.cardTitle, { marginBottom: 0, color: '#4A7C59' }]}>ISA-RVG Breakdown</Text>
+              <Text style={[st.cardTitle, { marginBottom: 0, color: '#4A7C59' }]}>Standard Fee Breakdown</Text>
             </View>
             <InfoRow label="City Tier" value={isa.city_tier} />
             <InfoRow label="Complexity" value={isa.surgical_complexity} />
@@ -257,7 +293,7 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
             </View>
             <InfoRow label="Rate/Unit" value={`₹${formatINR(isa.rate_per_unit)}`} />
             {isa.emergency && <InfoRow label="Emergency" value="+30% surcharge" valueColor="#D95D39" />}
-            {isa.case_cancelled && <InfoRow label="Cancelled" value="Fee 100% (ISA guideline)" />}
+            {isa.case_cancelled && <InfoRow label="Cancelled" value="Fee 100% (guideline)" />}
             <View style={st.isaFinalBox}>
               <Text style={st.isaFinalLabel}>Standard Fee</Text>
               <Text style={st.isaFinalAmount}>₹{formatINR(isa.final_fee)}</Text>
@@ -273,7 +309,7 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
           </View>
         ) : null}
 
-        {/* Actions */}
+        {/* PDF Button */}
         <TouchableOpacity
           testID="generate-pdf-btn"
           style={st.pdfBtn}
@@ -323,21 +359,36 @@ const st = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   feeHeroLabel: { fontSize: 13, fontWeight: '600', color: '#4A7C59' },
   feeHeroAmount: { fontSize: 36, fontWeight: '800', color: '#4A7C59', marginTop: 4, letterSpacing: -1 },
-  isaTag: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 8,
-    marginTop: 10,
+    marginTop: 12,
   },
-  isaTagText: { fontSize: 12, fontWeight: '600', color: '#4A7C59' },
+  statusPaid: { backgroundColor: '#4A7C59' },
+  statusPending: { backgroundColor: '#E65100' },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusBadgeText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  toggleStatusBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginBottom: 16,
+    borderWidth: 2,
+  },
+  toggleToPaid: { borderColor: '#4A7C59', backgroundColor: '#F0F7F2' },
+  toggleToPending: { borderColor: '#E65100', backgroundColor: '#FFF8F0' },
+  toggleStatusText: { fontSize: 14, fontWeight: '700' },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,

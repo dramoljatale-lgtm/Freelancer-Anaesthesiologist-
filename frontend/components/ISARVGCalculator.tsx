@@ -94,8 +94,8 @@ export default function ISARVGCalculator({ visible, onClose, onUseAmount }: Prop
           {/* Header */}
           <View style={s.header}>
             <View style={{ flex: 1 }}>
-              <Text style={s.title}>ISA-RVG Fee Calculator</Text>
-              <Text style={s.subtitle}>Calculate standard professional fee</Text>
+              <Text style={s.title}>Standard Fee Calculator</Text>
+              <Text style={s.subtitle}>ISA-RVG based fee calculation</Text>
             </View>
             <TouchableOpacity testID="close-calculator-btn" onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Ionicons name="close-circle" size={28} color="#9CA3AF" />
