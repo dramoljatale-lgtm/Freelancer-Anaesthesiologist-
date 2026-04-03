@@ -1,17 +1,29 @@
-# ISA-RVG Fee Calculator & Case Management App
+# Standard Fee Calculator & Case Management App
 
 ## Overview
-A mobile-first application for anaesthesiologists to manage surgical cases, calculate standard professional fees based on ISA (Indian Society of Anaesthesiologists) RVG (Relative Value Guide) standards, and generate bill receipts.
+A mobile-first application for anaesthesiologists to manage surgical cases, calculate standard professional fees based on ISA-RVG guidelines, track payment status, and generate bill receipts.
 
 ## Core Features
 
 ### 1. Case Management
 - **Add Case**: Form with Patient Name, Age, Gender, Surgery Name, Surgeon Name, Hospital, Date, Anaesthesia Type, Anaesthesia Fees, Notes
-- **Cases List**: FlatList with pull-to-refresh, stats summary (total cases, total earnings)
-- **Case Detail**: View all case information with ISA-RVG breakdown
-- **Delete Case**: Remove cases with confirmation dialog
+- **Save as Paid/Pending**: Dual save buttons to mark payment status at case creation
+- **Cases List**: FlatList with pull-to-refresh, stats (Cases, Received, Pending)
+- **Case Detail**: Full case info with payment status toggle
+- **Delete Case**: Remove cases with confirmation
 
-### 2. ISA-RVG Fee Calculator
+### 2. Payment Status Tracking
+- Cases can be marked as "Paid" or "Pending"
+- Toggle payment status from case detail page
+- Stats show total received vs pending amounts
+- Visual badges (green = paid, orange = pending)
+
+### 3. Today's Roster
+- Horizontal scrollable cards on home page
+- Shows today's cases: Hospital, Patient, Surgeon, Time
+- Quick access to case detail
+
+### 4. Standard Fee Calculator (ISA-RVG based)
 - **City Tier**: Tier 1 (₹1,000/unit), Tier 2 (₹700/unit), Tier 3 (₹400/unit, default)
 - **Surgical Complexity**: Minor (4), Intermediate (7), Major (12), Supra-Major (20 units)
 - **Duration**: Time units = Max(0, ceil((mins-60)/15))
@@ -20,28 +32,34 @@ A mobile-first application for anaesthesiologists to manage surgical cases, calc
 - **Case Cancelled**: Fee remains 100%
 - **Auto-fill**: "Use This Amount" fills the fees input
 
-### 3. CSV Export
-- Download all cases as CSV for tax/accounting
-- Works on web (blob download) and native (expo-sharing)
+### 5. Analytics Dashboard
+- Monthly/Yearly toggle view
+- Total Cases, Total Fees, Received, Pending
+- Collection rate progress bar
+- Monthly breakdown with individual progress bars
 
-### 4. PDF Bill Receipt
-- Professional receipt with patient, surgery, and fee details
-- ISA-RVG breakdown included when available
-- Sharing via expo-print + expo-sharing
+### 6. CSV Export
+- Download all cases as CSV for tax/accounting
+
+### 7. PDF Bill Receipt
+- Professional receipt with patient, surgery, fee details
+- Payment status shown on receipt
+- Standard Fee breakdown included when available
+
+## API Endpoints
+- `POST /api/cases` - Create case (with payment_status)
+- `GET /api/cases` - List all cases
+- `GET /api/cases/export/csv` - Export CSV
+- `GET /api/cases/{id}` - Get case detail
+- `DELETE /api/cases/{id}` - Delete case
+- `PATCH /api/cases/{id}/payment-status` - Toggle paid/pending
+- `GET /api/analytics` - Monthly/yearly analytics
 
 ## Tech Stack
 - **Frontend**: React Native (Expo SDK 54), expo-router
 - **Backend**: FastAPI, Motor (MongoDB async)
 - **Database**: MongoDB
-- **PDF**: expo-print
-- **Sharing**: expo-sharing
-
-## API Endpoints
-- `POST /api/cases` - Create case
-- `GET /api/cases` - List all cases
-- `GET /api/cases/export/csv` - Export CSV
-- `GET /api/cases/{id}` - Get case detail
-- `DELETE /api/cases/{id}` - Delete case
+- **PDF**: expo-print + expo-sharing
 
 ## Authentication
 - None (single user app)
