@@ -26,6 +26,13 @@ const ANAESTHESIA_TYPES = [
   { label: 'Combined', value: 'Combined' },
 ];
 
+const PAYMENT_MODES = [
+  { label: 'Cash', value: 'Cash' },
+  { label: 'UPI', value: 'UPI' },
+  { label: 'Cheque', value: 'Cheque' },
+  { label: 'Bank Transfer', value: 'Bank Transfer' },
+];
+
 const getDefaultDate = () => {
   const d = new Date();
   return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
@@ -47,6 +54,7 @@ export default function AddCase() {
   const [anaesthesiaType, setAnaesthesiaType] = useState('General');
   const [fees, setFees] = useState('');
   const [notes, setNotes] = useState('');
+  const [modeOfPayment, setModeOfPayment] = useState('Cash');
   const [isaDetails, setIsaDetails] = useState<ISARVGDetailsType | null>(null);
 
   const handleUseAmount = (fee: number, details: ISARVGDetailsType) => {
@@ -78,6 +86,7 @@ export default function AddCase() {
           anaesthesia_fees: parseFloat(fees),
           notes: notes.trim(),
           payment_status: paymentStatus,
+          mode_of_payment: modeOfPayment,
           isa_rvg_details: isaDetails,
         }),
       });
@@ -150,7 +159,7 @@ export default function AddCase() {
           </View>
 
           {/* Fees */}
-          <Text style={[st.section, { marginTop: 28 }]}>Fees</Text>
+          <Text style={[st.section, { marginTop: 28 }]}>Fees & Payment</Text>
 
           <Text style={st.label}>Anaesthesia Fees (₹) *</Text>
           <TextInput
@@ -161,6 +170,15 @@ export default function AddCase() {
             placeholder="Enter amount"
             keyboardType="numeric"
             placeholderTextColor="#9CA3AF"
+          />
+
+          <Text style={st.label}>Mode of Payment</Text>
+          <CustomPicker
+            testID="mode-of-payment-select"
+            options={PAYMENT_MODES}
+            selectedValue={modeOfPayment}
+            onValueChange={setModeOfPayment}
+            placeholder="Payment mode"
           />
 
           {/* Standard Fee Calculator Button */}

@@ -40,6 +40,14 @@ class ISARVGDetails(BaseModel):
     final_fee: float = 0
 
 
+class DoctorProfile(BaseModel):
+    name: str = ""
+    degree: str = ""
+    registration_no: str = ""
+    designation: str = "Consultant Anaesthesiologist"
+    city: str = ""
+
+
 class CaseCreate(BaseModel):
     patient_name: str
     age: int = 0
@@ -52,6 +60,7 @@ class CaseCreate(BaseModel):
     anaesthesia_fees: float = 0
     notes: str = ""
     payment_status: str = "pending"
+    mode_of_payment: str = "Cash"
     isa_rvg_details: Optional[ISARVGDetails] = None
 
 
@@ -68,6 +77,8 @@ class CaseResponse(BaseModel):
     anaesthesia_fees: float
     notes: str
     payment_status: str = "pending"
+    mode_of_payment: str = "Cash"
+    receipt_no: str = ""
     isa_rvg_details: Optional[ISARVGDetails] = None
     created_at: str
 
@@ -76,9 +87,25 @@ class PaymentStatusUpdate(BaseModel):
     payment_status: str
 
 
+# Doctor Profile Endpoints
+@api_router.get("/doctor-profile")
+async def get_doctor_profile():
+    profile = await db.doctor_profile.find_one({}, {"_id": 0})
+    if not profile:
+        return {"name": "", "degree": "", "registration_no": "", "designation": "Consultant Anaesthesiologist", "city": ""}
+    return profile
+
+
+@api_router.put("/doctor-profile")
+async def save_doctor_profile(profile: DoctorProfile):
+    profile_dict = profile.dict()
+    await db.doctor_profile.update_one({}, {"$set": profile_dict}, upsert=True)
+    return profile_dict
+
+
 @api_router.get("/")
 async def root():
-    return {"message": "ISA-RVG Fee Calculator API"}
+    return {"message": "Standard Fee Calculator API"}
 
 
 @api_router.post("/cases", response_model=CaseResponse)
@@ -86,6 +113,10 @@ async def create_case(case_input: CaseCreate):
     case_dict = case_input.dict()
     case_dict["id"] = str(uuid.uuid4())
     case_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    # Auto-generate receipt number
+    now = datetime.now(timezone.utc)
+    count = await db.cases.count_documents({})
+    case_dict["receipt_no"] = f"REC-{now.strftime('%d%m')}-{count + 1:03d}"
     await db.cases.insert_one(case_dict)
     return CaseResponse(**{k: v for k, v in case_dict.items() if k != "_id"})
 
@@ -96,16 +127,19 @@ async def export_cases_csv():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
-        "Date", "Patient Name", "Age", "Gender", "Surgery",
-        "Surgeon", "Hospital", "Anaesthesia Type", "Fees", "Notes"
+        "Receipt No", "Date", "Patient Name", "Age", "Gender", "Surgery",
+        "Surgeon", "Hospital", "Anaesthesia Type", "Fees",
+        "Payment Status", "Mode of Payment", "Notes"
     ])
     for c in cases:
         writer.writerow([
-            c.get("date", ""), c.get("patient_name", ""),
-            c.get("age", ""), c.get("gender", ""),
-            c.get("surgery_name", ""), c.get("surgeon_name", ""),
-            c.get("hospital", ""), c.get("anaesthesia_type", ""),
-            c.get("anaesthesia_fees", ""), c.get("notes", "")
+            c.get("receipt_no", ""), c.get("date", ""),
+            c.get("patient_name", ""), c.get("age", ""),
+            c.get("gender", ""), c.get("surgery_name", ""),
+            c.get("surgeon_name", ""), c.get("hospital", ""),
+            c.get("anaesthesia_type", ""), c.get("anaesthesia_fees", ""),
+            c.get("payment_status", "pending"), c.get("mode_of_payment", "Cash"),
+            c.get("notes", "")
         ])
     return Response(
         content=output.getvalue(),

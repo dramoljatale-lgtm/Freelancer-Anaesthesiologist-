@@ -25,19 +25,32 @@ interface CaseData {
   anaesthesia_fees: number;
   notes: string;
   payment_status: string;
+  mode_of_payment: string;
+  receipt_no: string;
   isa_rvg_details: any;
   created_at: string;
+}
+
+interface DoctorProfile {
+  name: string;
+  degree: string;
+  registration_no: string;
+  designation: string;
+  city: string;
 }
 
 export default function CaseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [caseData, setCaseData] = useState<CaseData | null>(null);
+  const [doctor, setDoctor] = useState<DoctorProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
 
-  useEffect(() => { fetchCase(); }, [id]);
+  useEffect(() => {
+    Promise.all([fetchCase(), fetchDoctor()]).then(() => setLoading(false));
+  }, [id]);
 
   const fetchCase = async () => {
     try {
@@ -46,9 +59,15 @@ export default function CaseDetail() {
       setCaseData(await res.json());
     } catch {
       Alert.alert('Error', 'Case not found');
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const fetchDoctor = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/doctor-profile`);
+      const data = await res.json();
+      if (data.name) setDoctor(data);
+    } catch {}
   };
 
   const handleToggleStatus = async () => {
@@ -88,72 +107,69 @@ export default function CaseDetail() {
     ]);
   };
 
-  const generateBillHTML = (c: CaseData) => {
-    const isa = c.isa_rvg_details;
-    const isaSection = isa ? `
-      <div class="section">
-        <div class="section-title">Standard Fee Calculation (ISA-RVG)</div>
-        <div class="info-row"><span class="lbl">City Tier</span><span class="val">${isa.city_tier}</span></div>
-        <div class="info-row"><span class="lbl">Surgical Complexity</span><span class="val">${isa.surgical_complexity}</span></div>
-        <div class="info-row"><span class="lbl">Duration</span><span class="val">${isa.duration_minutes} minutes</span></div>
-        <div class="info-row"><span class="lbl">Base Units</span><span class="val">${isa.base_units}</span></div>
-        <div class="info-row"><span class="lbl">Time Units</span><span class="val">${isa.time_units}</span></div>
-        <div class="info-row"><span class="lbl">ASA Units</span><span class="val">${isa.asa_units}</span></div>
-        <div class="info-row total-row"><span class="lbl bold">Total Units</span><span class="val bold">${isa.total_units}</span></div>
-        <div class="info-row"><span class="lbl">Rate per Unit</span><span class="val">${isa.rate_per_unit}</span></div>
-        ${isa.emergency ? '<div class="info-row"><span class="lbl emergency">Emergency Surcharge</span><span class="val emergency">+30%</span></div>' : ''}
-        <div class="info-row total-row"><span class="lbl bold green">Standard Fee</span><span class="val bold green">${formatINR(isa.final_fee)}</span></div>
-      </div>` : '';
+  const generateBillHTML = (c: CaseData, doc: DoctorProfile | null) => {
+    const drName = doc?.name || 'Doctor Name';
+    const drDegree = doc?.degree || '';
+    const drDesig = doc?.designation || 'Consultant Anaesthesiologist';
+    const drCity = doc?.city || '';
+    const drReg = doc?.registration_no || '---';
 
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#1A201C;padding:40px;max-width:600px;margin:0 auto}
-.header{text-align:center;padding-bottom:20px;border-bottom:3px solid #4A7C59;margin-bottom:24px}
-.header h1{font-size:20px;color:#4A7C59;letter-spacing:2px;text-transform:uppercase}
-.header p{color:#6B7280;font-size:12px;margin-top:4px}
-.status-badge{display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;margin-top:8px}
-.status-paid{background:#E8F5E9;color:#4A7C59}
-.status-pending{background:#FFF3E0;color:#E65100}
-.section{margin-bottom:20px}
-.section-title{font-size:13px;font-weight:700;color:#4A7C59;text-transform:uppercase;letter-spacing:1px;padding-bottom:8px;border-bottom:1px solid #E5E7EB;margin-bottom:10px}
-.info-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
-.lbl{color:#6B7280}.val{font-weight:600}
-.bold{font-weight:700;color:#1A201C}.green{color:#4A7C59!important}.emergency{color:#D95D39!important}
-.total-row{border-top:1px solid #E5E7EB;margin-top:6px;padding-top:8px}
-.fee-box{background:#E8F5E9;border-radius:12px;padding:20px;text-align:center;margin:20px 0}
-.fee-box .label{font-size:12px;color:#4A7C59;font-weight:600}
-.fee-box .amount{font-size:28px;font-weight:800;color:#4A7C59}
-.footer{text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #E5E7EB;color:#6B7280;font-size:11px}
+body{font-family:'Georgia',serif;color:#1A201C;padding:48px 40px;max-width:620px;margin:0 auto;line-height:1.5}
+.receipt-title{text-align:center;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#4A7C59;margin-bottom:24px;padding-bottom:12px;border-bottom:2px solid #4A7C59}
+.doctor-block{text-align:center;margin-bottom:28px}
+.doctor-name{font-size:20px;font-weight:700;color:#1A201C}
+.doctor-degree{font-size:14px;color:#4A7C59;font-weight:600;margin-top:2px}
+.doctor-desig{font-size:13px;color:#6B7280;margin-top:2px}
+.doctor-reg{font-size:12px;color:#6B7280;margin-top:4px}
+.meta-row{display:flex;justify-content:space-between;font-size:13px;color:#6B7280;margin-bottom:24px;padding-bottom:12px;border-bottom:1px solid #E5E7EB}
+.section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#4A7C59;margin-bottom:12px;margin-top:20px}
+.detail-row{display:flex;justify-content:space-between;font-size:14px;padding:4px 0}
+.detail-label{color:#6B7280}
+.detail-value{font-weight:600;color:#1A201C}
+.fee-statement{font-size:16px;font-weight:600;margin:28px 0;padding:16px;background:#F0F7F2;border-radius:8px;text-align:center;color:#1A201C}
+.fee-statement .amount{color:#4A7C59;font-weight:800;font-size:18px}
+.payment-mode{font-size:14px;color:#6B7280;margin-bottom:32px}
+.payment-mode strong{color:#1A201C}
+.signature-block{text-align:right;margin-top:48px;padding-top:16px}
+.signature-line{display:inline-block;width:200px;border-top:1px solid #1A201C;padding-top:6px;font-size:13px;color:#6B7280}
+.footer{text-align:center;margin-top:32px;font-size:11px;color:#9CA3AF;border-top:1px solid #E5E7EB;padding-top:12px}
 </style></head><body>
-<div class="header">
-  <h1>Anaesthesia Fee Receipt</h1>
-  <p>${c.hospital || 'Hospital'}</p>
-  <span class="status-badge ${c.payment_status === 'paid' ? 'status-paid' : 'status-pending'}">${c.payment_status === 'paid' ? 'PAID' : 'PENDING'}</span>
+
+<div class="receipt-title">Receipt for Professional Services</div>
+
+<div class="doctor-block">
+  <div class="doctor-name">${drName}</div>
+  ${drDegree ? `<div class="doctor-degree">${drDegree}</div>` : ''}
+  <div class="doctor-desig">${drDesig}${drCity ? ` | ${drCity}` : ''}</div>
+  <div class="doctor-reg">Reg No: ${drReg}</div>
 </div>
-<div class="section">
-  <div class="section-title">Patient Information</div>
-  <div class="info-row"><span class="lbl">Name</span><span class="val">${c.patient_name}</span></div>
-  <div class="info-row"><span class="lbl">Age / Gender</span><span class="val">${c.age} yrs / ${c.gender}</span></div>
-  <div class="info-row"><span class="lbl">Date</span><span class="val">${c.date}</span></div>
+
+<div class="meta-row">
+  <span>Receipt No: <strong>${c.receipt_no || '---'}</strong></span>
+  <span>Date: <strong>${c.date}</strong></span>
 </div>
-<div class="section">
-  <div class="section-title">Surgery Details</div>
-  <div class="info-row"><span class="lbl">Surgery</span><span class="val">${c.surgery_name}</span></div>
-  <div class="info-row"><span class="lbl">Surgeon</span><span class="val">${c.surgeon_name || '-'}</span></div>
-  <div class="info-row"><span class="lbl">Anaesthesia Type</span><span class="val">${c.anaesthesia_type}</span></div>
+
+<div class="section-title">Case Details</div>
+<div class="detail-row"><span class="detail-label">Patient Name</span><span class="detail-value">${c.patient_name}</span></div>
+<div class="detail-row"><span class="detail-label">Primary Surgeon</span><span class="detail-value">${c.surgeon_name || '-'}</span></div>
+<div class="detail-row"><span class="detail-label">Hospital / Clinic</span><span class="detail-value">${c.hospital || '-'}</span></div>
+<div class="detail-row"><span class="detail-label">Surgical Procedure</span><span class="detail-value">${c.surgery_name}</span></div>
+
+<div class="fee-statement">
+  Received <span class="amount">&#8377;${formatINR(c.anaesthesia_fees)}</span> as anaesthesia fees.
 </div>
-${isaSection}
-<div class="fee-box">
-  <div class="label">Total Anaesthesia Fee</div>
-  <div class="amount">&#8377;${formatINR(c.anaesthesia_fees)}</div>
+
+<div class="payment-mode">Mode of Payment: <strong>${c.mode_of_payment || 'Cash'}</strong></div>
+
+<div class="signature-block">
+  <div class="signature-line">Signature</div>
 </div>
-${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style="font-size:13px;color:#6B7280">${c.notes}</p></div>` : ''}
-<div class="footer">
-  <p>This is a computer-generated receipt</p>
-  <p>Generated on ${new Date().toLocaleDateString('en-IN')}</p>
-</div>
+
+<div class="footer">This is a computer-generated receipt</div>
 </body></html>`;
   };
 
@@ -161,7 +177,7 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
     if (!caseData) return;
     setPdfLoading(true);
     try {
-      const html = generateBillHTML(caseData);
+      const html = generateBillHTML(caseData, doctor);
       if (Platform.OS === 'web') {
         await Print.printAsync({ html });
       } else {
@@ -219,9 +235,13 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
         <View style={st.feeHero}>
           <Text style={st.feeHeroLabel}>Anaesthesia Fee</Text>
           <Text style={st.feeHeroAmount}>₹{formatINR(c.anaesthesia_fees)}</Text>
-          <View style={[st.statusBadge, isPaid ? st.statusPaid : st.statusPending]}>
-            <View style={[st.statusDot, { backgroundColor: isPaid ? '#fff' : '#fff' }]} />
-            <Text style={st.statusBadgeText}>{isPaid ? 'PAID' : 'PENDING'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
+            <View style={[st.statusBadge, isPaid ? st.statusPaid : st.statusPending]}>
+              <Text style={st.statusBadgeText}>{isPaid ? 'PAID' : 'PENDING'}</Text>
+            </View>
+            {c.receipt_no ? (
+              <Text style={st.receiptNo}>{c.receipt_no}</Text>
+            ) : null}
           </View>
         </View>
 
@@ -261,6 +281,7 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
           <InfoRow label="Surgeon" value={c.surgeon_name || '-'} />
           <InfoRow label="Hospital" value={c.hospital || '-'} />
           <InfoRow label="Anaesthesia" value={c.anaesthesia_type} />
+          <InfoRow label="Payment Mode" value={c.mode_of_payment || 'Cash'} />
         </View>
 
         {/* Standard Fee Breakdown */}
@@ -274,18 +295,9 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
             <InfoRow label="Complexity" value={isa.surgical_complexity} />
             <InfoRow label="Duration" value={`${isa.duration_minutes} min`} />
             <View style={st.breakdownBox}>
-              <View style={st.bRow}>
-                <Text style={st.bLabel}>Base Units</Text>
-                <Text style={st.bVal}>{isa.base_units}</Text>
-              </View>
-              <View style={st.bRow}>
-                <Text style={st.bLabel}>Time Units</Text>
-                <Text style={st.bVal}>{isa.time_units}</Text>
-              </View>
-              <View style={st.bRow}>
-                <Text style={st.bLabel}>ASA Units</Text>
-                <Text style={st.bVal}>{isa.asa_units}</Text>
-              </View>
+              <View style={st.bRow}><Text style={st.bLabel}>Base Units</Text><Text style={st.bVal}>{isa.base_units}</Text></View>
+              <View style={st.bRow}><Text style={st.bLabel}>Time Units</Text><Text style={st.bVal}>{isa.time_units}</Text></View>
+              <View style={st.bRow}><Text style={st.bLabel}>ASA Units</Text><Text style={st.bVal}>{isa.asa_units}</Text></View>
               <View style={[st.bRow, { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 6, marginTop: 4 }]}>
                 <Text style={[st.bLabel, { fontWeight: '700', color: '#1A201C' }]}>Total Units</Text>
                 <Text style={[st.bVal, { fontWeight: '700' }]}>{isa.total_units}</Text>
@@ -293,7 +305,6 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
             </View>
             <InfoRow label="Rate/Unit" value={`₹${formatINR(isa.rate_per_unit)}`} />
             {isa.emergency && <InfoRow label="Emergency" value="+30% surcharge" valueColor="#D95D39" />}
-            {isa.case_cancelled && <InfoRow label="Cancelled" value="Fee 100% (guideline)" />}
             <View style={st.isaFinalBox}>
               <Text style={st.isaFinalLabel}>Standard Fee</Text>
               <Text style={st.isaFinalAmount}>₹{formatINR(isa.final_fee)}</Text>
@@ -301,13 +312,21 @@ ${c.notes ? `<div class="section"><div class="section-title">Notes</div><p style
           </View>
         )}
 
-        {/* Notes */}
         {c.notes ? (
           <View style={st.card}>
             <Text style={st.cardTitle}>Notes</Text>
             <Text style={{ fontSize: 14, color: '#6B7280', lineHeight: 20 }}>{c.notes}</Text>
           </View>
         ) : null}
+
+        {/* Doctor Info Reminder */}
+        {!doctor && (
+          <TouchableOpacity style={st.profileReminder} onPress={() => router.push('/profile')} activeOpacity={0.7}>
+            <Ionicons name="alert-circle-outline" size={18} color="#E65100" />
+            <Text style={st.profileReminderText}>Set up your doctor profile for professional receipts</Text>
+            <Ionicons name="chevron-forward" size={16} color="#E65100" />
+          </TouchableOpacity>
+        )}
 
         {/* PDF Button */}
         <TouchableOpacity
@@ -363,18 +382,14 @@ const st = StyleSheet.create({
   },
   feeHeroLabel: { fontSize: 13, fontWeight: '600', color: '#4A7C59' },
   feeHeroAmount: { fontSize: 36, fontWeight: '800', color: '#4A7C59', marginTop: 4, letterSpacing: -1 },
+  receiptNo: { fontSize: 12, fontWeight: '600', color: '#4A7C59', backgroundColor: '#FFFFFF', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 8,
-    marginTop: 12,
   },
   statusPaid: { backgroundColor: '#4A7C59' },
   statusPending: { backgroundColor: '#E65100' },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusBadgeText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
   toggleStatusBtn: {
     flexDirection: 'row',
@@ -431,6 +446,16 @@ const st = StyleSheet.create({
   },
   isaFinalLabel: { fontSize: 12, fontWeight: '600', color: '#4A7C59' },
   isaFinalAmount: { fontSize: 24, fontWeight: '800', color: '#4A7C59', marginTop: 2 },
+  profileReminder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF3E0',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  profileReminderText: { fontSize: 13, color: '#E65100', flex: 1, fontWeight: '500' },
   pdfBtn: {
     backgroundColor: '#4A7C59',
     borderRadius: 14,

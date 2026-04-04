@@ -215,6 +215,13 @@ export default function CasesList() {
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
+            testID="profile-btn"
+            style={styles.profileBtn}
+            onPress={() => router.push('/profile')}
+          >
+            <Ionicons name="person-outline" size={18} color="#4A7C59" />
+          </TouchableOpacity>
+          <TouchableOpacity
             testID="analytics-btn"
             style={styles.headerBtn}
             onPress={() => router.push('/analytics')}
@@ -301,6 +308,14 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 14, color: '#6B7280', marginTop: 2 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EAECEB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
