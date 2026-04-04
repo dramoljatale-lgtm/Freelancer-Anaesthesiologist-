@@ -42,18 +42,28 @@ A mobile-first application for anaesthesiologists to manage surgical cases, calc
 - Download all cases as CSV for tax/accounting
 
 ### 7. PDF Bill Receipt
-- Professional receipt with patient, surgery, fee details
-- Payment status shown on receipt
-- Standard Fee breakdown included when available
+- Professional "RECEIPT FOR PROFESSIONAL SERVICES" format
+- Doctor details: Name, Degree, Designation | City, Reg No
+- Auto-generated Receipt Number (REC-DDMM-NNN)
+- Case details, fee statement, mode of payment
+- Signature line at bottom right
+
+### 8. Doctor Profile (One-time Setup)
+- Name, Degree, Registration Number, Designation, City
+- Live receipt preview on profile screen
+- Accessible via person icon in home header
+- Used to populate bill receipts
 
 ## API Endpoints
-- `POST /api/cases` - Create case (with payment_status)
+- `POST /api/cases` - Create case (with payment_status, mode_of_payment, auto receipt_no)
 - `GET /api/cases` - List all cases
-- `GET /api/cases/export/csv` - Export CSV
+- `GET /api/cases/export/csv` - Export CSV (includes receipt_no, payment_status, mode_of_payment)
 - `GET /api/cases/{id}` - Get case detail
 - `DELETE /api/cases/{id}` - Delete case
 - `PATCH /api/cases/{id}/payment-status` - Toggle paid/pending
 - `GET /api/analytics` - Monthly/yearly analytics
+- `GET /api/doctor-profile` - Get doctor profile
+- `PUT /api/doctor-profile` - Save/update doctor profile
 
 ## Tech Stack
 - **Frontend**: React Native (Expo SDK 54), expo-router
