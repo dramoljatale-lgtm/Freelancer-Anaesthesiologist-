@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Response, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -23,7 +23,6 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
-# Models
 class ISARVGDetails(BaseModel):
     city_tier: str = ""
     rate_per_unit: float = 0
@@ -46,6 +45,10 @@ class DoctorProfile(BaseModel):
     registration_no: str = ""
     designation: str = "Consultant Anaesthesiologist"
     city: str = ""
+
+
+class NameItem(BaseModel):
+    name: str
 
 
 class CaseCreate(BaseModel):
@@ -87,7 +90,7 @@ class PaymentStatusUpdate(BaseModel):
     payment_status: str
 
 
-# Doctor Profile Endpoints
+# Doctor Profile
 @api_router.get("/doctor-profile")
 async def get_doctor_profile():
     profile = await db.doctor_profile.find_one({}, {"_id": 0})
@@ -98,9 +101,53 @@ async def get_doctor_profile():
 
 @api_router.put("/doctor-profile")
 async def save_doctor_profile(profile: DoctorProfile):
-    profile_dict = profile.dict()
-    await db.doctor_profile.update_one({}, {"$set": profile_dict}, upsert=True)
-    return profile_dict
+    d = profile.dict()
+    await db.doctor_profile.update_one({}, {"$set": d}, upsert=True)
+    return d
+
+
+# Hospitals CRUD
+@api_router.get("/hospitals")
+async def get_hospitals():
+    items = await db.hospitals.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+    return items
+
+
+@api_router.post("/hospitals")
+async def add_hospital(item: NameItem):
+    doc = {"id": str(uuid.uuid4()), "name": item.name.strip()}
+    await db.hospitals.insert_one(doc)
+    return {"id": doc["id"], "name": doc["name"]}
+
+
+@api_router.delete("/hospitals/{item_id}")
+async def delete_hospital(item_id: str):
+    result = await db.hospitals.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"message": "Deleted"}
+
+
+# Surgeons CRUD
+@api_router.get("/surgeons")
+async def get_surgeons():
+    items = await db.surgeons.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+    return items
+
+
+@api_router.post("/surgeons")
+async def add_surgeon(item: NameItem):
+    doc = {"id": str(uuid.uuid4()), "name": item.name.strip()}
+    await db.surgeons.insert_one(doc)
+    return {"id": doc["id"], "name": doc["name"]}
+
+
+@api_router.delete("/surgeons/{item_id}")
+async def delete_surgeon(item_id: str):
+    result = await db.surgeons.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"message": "Deleted"}
 
 
 @api_router.get("/")
@@ -113,7 +160,6 @@ async def create_case(case_input: CaseCreate):
     case_dict = case_input.dict()
     case_dict["id"] = str(uuid.uuid4())
     case_dict["created_at"] = datetime.now(timezone.utc).isoformat()
-    # Auto-generate receipt number
     now = datetime.now(timezone.utc)
     count = await db.cases.count_documents({})
     case_dict["receipt_no"] = f"REC-{now.strftime('%d%m')}-{count + 1:03d}"
@@ -121,9 +167,43 @@ async def create_case(case_input: CaseCreate):
     return CaseResponse(**{k: v for k, v in case_dict.items() if k != "_id"})
 
 
+def _filter_cases_by_period(cases, period, year, quarter):
+    if period == "quarterly" and year > 0 and 1 <= quarter <= 4:
+        q_start = (quarter - 1) * 3 + 1
+        q_end = quarter * 3
+        filtered = []
+        for c in cases:
+            try:
+                parts = c.get("date", "").split("/")
+                if len(parts) == 3:
+                    m, y = int(parts[1]), int(parts[2])
+                    if y == year and q_start <= m <= q_end:
+                        filtered.append(c)
+            except (ValueError, IndexError):
+                continue
+        return filtered
+    elif period == "yearly" and year > 0:
+        filtered = []
+        for c in cases:
+            try:
+                parts = c.get("date", "").split("/")
+                if len(parts) == 3 and int(parts[2]) == year:
+                    filtered.append(c)
+            except (ValueError, IndexError):
+                continue
+        return filtered
+    return cases
+
+
 @api_router.get("/cases/export/csv")
-async def export_cases_csv():
+async def export_cases_csv(
+    period: str = Query("all"),
+    year: int = Query(0),
+    quarter: int = Query(0),
+):
     cases = await db.cases.find({}, {"_id": 0}).sort("created_at", -1).to_list(10000)
+    cases = _filter_cases_by_period(cases, period, year, quarter)
+
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -141,10 +221,17 @@ async def export_cases_csv():
             c.get("payment_status", "pending"), c.get("mode_of_payment", "Cash"),
             c.get("notes", "")
         ])
+
+    label = "all"
+    if period == "quarterly":
+        label = f"Q{quarter}_{year}"
+    elif period == "yearly":
+        label = str(year)
+
     return Response(
         content=output.getvalue(),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=cases_export.csv"}
+        headers={"Content-Disposition": f"attachment; filename=cases_{label}.csv"}
     )
 
 
@@ -175,8 +262,7 @@ async def update_payment_status(case_id: str, update: PaymentStatusUpdate):
     if update.payment_status not in ["paid", "pending"]:
         raise HTTPException(status_code=400, detail="Status must be 'paid' or 'pending'")
     result = await db.cases.update_one(
-        {"id": case_id},
-        {"$set": {"payment_status": update.payment_status}}
+        {"id": case_id}, {"$set": {"payment_status": update.payment_status}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -235,10 +321,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
