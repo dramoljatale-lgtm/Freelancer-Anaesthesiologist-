@@ -129,6 +129,23 @@ export default function Profile() {
             {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={st.saveBtnText}>Save Profile</Text>}
           </TouchableOpacity>
 
+          {/* Manage Link */}
+          <TouchableOpacity
+            testID="manage-hospitals-surgeons-btn"
+            style={st.manageLink}
+            onPress={() => router.push('/manage')}
+            activeOpacity={0.7}
+          >
+            <View style={st.manageLinkIcon}>
+              <Ionicons name="settings-outline" size={18} color="#4A7C59" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={st.manageLinkTitle}>Manage Hospitals & Surgeons</Text>
+              <Text style={st.manageLinkSub}>View, add or remove saved entries</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#6B7280" />
+          </TouchableOpacity>
+
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -207,4 +224,21 @@ const st = StyleSheet.create({
     marginTop: 28,
   },
   saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  manageLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 12,
+  },
+  manageLinkIcon: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: '#E8F5E9',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  manageLinkTitle: { fontSize: 14, fontWeight: '700', color: '#1A201C' },
+  manageLinkSub: { fontSize: 12, color: '#6B7280', marginTop: 2 },
 });

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-  Alert, Platform, RefreshControl, ScrollView, Modal
+  Alert, Platform, RefreshControl, ScrollView, Modal, Image
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -155,7 +155,10 @@ export default function CasesList() {
     <SafeAreaView style={st.container} edges={['top']}>
       {/* Header */}
       <View style={st.header}>
-        <Text style={st.headerTitle}>My Cases</Text>
+        <View style={st.headerLeft}>
+          <Image source={require('../assets/images/faft-logo.png')} style={st.logo} />
+          <Text style={st.headerTitle}>FAFT</Text>
+        </View>
         <View style={st.headerActions}>
           <TouchableOpacity testID="profile-btn" style={st.hBtn} onPress={() => router.push('/profile')}>
             <Ionicons name="person-outline" size={18} color="#4A7C59" />
@@ -254,7 +257,9 @@ export default function CasesList() {
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F7F8' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: '#1A201C', letterSpacing: -0.5 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logo: { width: 36, height: 36, borderRadius: 18 },
+  headerTitle: { fontSize: 24, fontWeight: '800', color: '#1A201C', letterSpacing: -0.5 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   hBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#EAECEB', justifyContent: 'center', alignItems: 'center' },
   csvBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#EAECEB', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
