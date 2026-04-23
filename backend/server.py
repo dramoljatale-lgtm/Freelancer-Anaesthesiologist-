@@ -45,6 +45,7 @@ class DoctorProfile(BaseModel):
     registration_no: str = ""
     designation: str = "Consultant Anaesthesiologist"
     city: str = ""
+    signature_base64: str = ""
 
 
 class NameItem(BaseModel):
@@ -95,7 +96,7 @@ class PaymentStatusUpdate(BaseModel):
 async def get_doctor_profile():
     profile = await db.doctor_profile.find_one({}, {"_id": 0})
     if not profile:
-        return {"name": "", "degree": "", "registration_no": "", "designation": "Consultant Anaesthesiologist", "city": ""}
+        return {"name": "", "degree": "", "registration_no": "", "designation": "Consultant Anaesthesiologist", "city": "", "signature_base64": ""}
     return profile
 
 

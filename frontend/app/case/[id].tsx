@@ -37,6 +37,7 @@ interface DoctorProfile {
   registration_no: string;
   designation: string;
   city: string;
+  signature_base64: string;
 }
 
 export default function CaseDetail() {
@@ -113,6 +114,7 @@ export default function CaseDetail() {
     const drDesig = doc?.designation || 'Consultant Anaesthesiologist';
     const drCity = doc?.city || '';
     const drReg = doc?.registration_no || '---';
+    const drSig = doc?.signature_base64 || '';
 
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -135,6 +137,7 @@ body{font-family:'Georgia',serif;color:#1A201C;padding:48px 40px;max-width:620px
 .payment-mode{font-size:14px;color:#6B7280;margin-bottom:32px}
 .payment-mode strong{color:#1A201C}
 .signature-block{text-align:right;margin-top:48px;padding-top:16px}
+.signature-img{max-width:180px;max-height:60px;margin-bottom:8px}
 .signature-line{display:inline-block;width:200px;border-top:1px solid #1A201C;padding-top:6px;font-size:13px;color:#6B7280}
 .footer{text-align:center;margin-top:32px;font-size:11px;color:#9CA3AF;border-top:1px solid #E5E7EB;padding-top:12px}
 </style></head><body>
@@ -166,6 +169,7 @@ body{font-family:'Georgia',serif;color:#1A201C;padding:48px 40px;max-width:620px
 <div class="payment-mode">Mode of Payment: <strong>${c.mode_of_payment || 'Cash'}</strong></div>
 
 <div class="signature-block">
+  ${drSig ? `<img src="${drSig}" class="signature-img" /><br/>` : ''}
   <div class="signature-line">Signature</div>
 </div>
 
