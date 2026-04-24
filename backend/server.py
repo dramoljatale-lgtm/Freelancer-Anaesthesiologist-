@@ -312,6 +312,23 @@ async def get_analytics():
     }
 
 
+@api_router.delete("/reset-all-data")
+async def reset_all_data():
+    r1 = await db.cases.delete_many({})
+    r2 = await db.doctor_profile.delete_many({})
+    r3 = await db.hospitals.delete_many({})
+    r4 = await db.surgeons.delete_many({})
+    return {
+        "message": "All data cleared",
+        "deleted": {
+            "cases": r1.deleted_count,
+            "profiles": r2.deleted_count,
+            "hospitals": r3.deleted_count,
+            "surgeons": r4.deleted_count,
+        }
+    }
+
+
 app.include_router(api_router)
 
 app.add_middleware(

@@ -74,6 +74,30 @@ export default function Profile() {
     }
   };
 
+  const handleClearAllData = () => {
+    Alert.alert(
+      'Clear All Data',
+      'This will permanently delete ALL cases, doctor profile, hospitals, and surgeons. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Everything',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await fetch(`${BACKEND_URL}/api/reset-all-data`, { method: 'DELETE' });
+              const data = await res.json();
+              Alert.alert('Done', `Cleared: ${data.deleted.cases} cases, ${data.deleted.hospitals} hospitals, ${data.deleted.surgeons} surgeons`);
+              setName(''); setDegree(''); setRegistrationNo(''); setDesignation('Consultant Anaesthesiologist'); setCity(''); setSignatureBase64('');
+            } catch {
+              Alert.alert('Error', 'Failed to clear data');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSave = async () => {
     if (!name.trim()) return Alert.alert('Required', 'Doctor name is required');
     setSaving(true);
@@ -192,6 +216,15 @@ export default function Profile() {
               <Text style={st.manageLinkSub}>View, add or remove saved entries</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#6B7280" />
+          </TouchableOpacity>
+
+          {/* Clear All Data */}
+          <TouchableOpacity testID="clear-all-data-btn" style={st.dangerLink} onPress={handleClearAllData} activeOpacity={0.7}>
+            <View style={st.dangerLinkIcon}><Ionicons name="trash-outline" size={18} color="#D95D39" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={st.dangerLinkTitle}>Clear All Data</Text>
+              <Text style={st.dangerLinkSub}>Remove all cases, profile & saved entries</Text>
+            </View>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
