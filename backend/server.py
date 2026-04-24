@@ -23,6 +23,12 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
+# Health check at root for production Kubernetes probes
+@app.get("/")
+async def health_check():
+    return {"status": "ok"}
+
+
 class ISARVGDetails(BaseModel):
     city_tier: str = ""
     rate_per_unit: float = 0
