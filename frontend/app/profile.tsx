@@ -9,7 +9,6 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { getDoctorProfile, saveDoctorProfile, exportAllData, importAllData, clearAllData } from '../utils/storage';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function Profile() {
   const router = useRouter();
