@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Response, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Response, Query, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -23,10 +23,8 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
-# Health check at root for production Kubernetes probes
-@app.get("/")
-async def health_check():
-    return {"status": "ok"}
+def get_device_id(request: Request) -> str:
+    return request.headers.get("X-Device-ID", "default")
 
 
 class ISARVGDetails(BaseModel):
@@ -97,61 +95,76 @@ class PaymentStatusUpdate(BaseModel):
     payment_status: str
 
 
-# Doctor Profile
+# Health check
+@app.get("/")
+async def health_check():
+    return {"status": "ok"}
+
+
+# Doctor Profile (per device)
 @api_router.get("/doctor-profile")
-async def get_doctor_profile():
-    profile = await db.doctor_profile.find_one({}, {"_id": 0})
+async def get_doctor_profile(request: Request):
+    did = get_device_id(request)
+    profile = await db.doctor_profile.find_one({"device_id": did}, {"_id": 0})
     if not profile:
         return {"name": "", "degree": "", "registration_no": "", "designation": "Consultant Anaesthesiologist", "city": "", "signature_base64": ""}
-    return profile
+    return {k: v for k, v in profile.items() if k != "device_id"}
 
 
 @api_router.put("/doctor-profile")
-async def save_doctor_profile(profile: DoctorProfile):
+async def save_doctor_profile(profile: DoctorProfile, request: Request):
+    did = get_device_id(request)
     d = profile.dict()
-    await db.doctor_profile.update_one({}, {"$set": d}, upsert=True)
-    return d
+    d["device_id"] = did
+    await db.doctor_profile.update_one({"device_id": did}, {"$set": d}, upsert=True)
+    return {k: v for k, v in d.items() if k != "device_id"}
 
 
-# Hospitals CRUD
+# Hospitals (per device)
 @api_router.get("/hospitals")
-async def get_hospitals():
-    items = await db.hospitals.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+async def get_hospitals(request: Request):
+    did = get_device_id(request)
+    items = await db.hospitals.find({"device_id": did}, {"_id": 0, "device_id": 0}).sort("name", 1).to_list(500)
     return items
 
 
 @api_router.post("/hospitals")
-async def add_hospital(item: NameItem):
-    doc = {"id": str(uuid.uuid4()), "name": item.name.strip()}
+async def add_hospital(item: NameItem, request: Request):
+    did = get_device_id(request)
+    doc = {"id": str(uuid.uuid4()), "name": item.name.strip(), "device_id": did}
     await db.hospitals.insert_one(doc)
     return {"id": doc["id"], "name": doc["name"]}
 
 
 @api_router.delete("/hospitals/{item_id}")
-async def delete_hospital(item_id: str):
-    result = await db.hospitals.delete_one({"id": item_id})
+async def delete_hospital(item_id: str, request: Request):
+    did = get_device_id(request)
+    result = await db.hospitals.delete_one({"id": item_id, "device_id": did})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"message": "Deleted"}
 
 
-# Surgeons CRUD
+# Surgeons (per device)
 @api_router.get("/surgeons")
-async def get_surgeons():
-    items = await db.surgeons.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+async def get_surgeons(request: Request):
+    did = get_device_id(request)
+    items = await db.surgeons.find({"device_id": did}, {"_id": 0, "device_id": 0}).sort("name", 1).to_list(500)
     return items
 
 
 @api_router.post("/surgeons")
-async def add_surgeon(item: NameItem):
-    doc = {"id": str(uuid.uuid4()), "name": item.name.strip()}
+async def add_surgeon(item: NameItem, request: Request):
+    did = get_device_id(request)
+    doc = {"id": str(uuid.uuid4()), "name": item.name.strip(), "device_id": did}
     await db.surgeons.insert_one(doc)
     return {"id": doc["id"], "name": doc["name"]}
 
 
 @api_router.delete("/surgeons/{item_id}")
-async def delete_surgeon(item_id: str):
-    result = await db.surgeons.delete_one({"id": item_id})
+async def delete_surgeon(item_id: str, request: Request):
+    did = get_device_id(request)
+    result = await db.surgeons.delete_one({"id": item_id, "device_id": did})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"message": "Deleted"}
@@ -159,19 +172,22 @@ async def delete_surgeon(item_id: str):
 
 @api_router.get("/")
 async def root():
-    return {"message": "Standard Fee Calculator API"}
+    return {"message": "FAFT API"}
 
 
+# Cases (per device)
 @api_router.post("/cases", response_model=CaseResponse)
-async def create_case(case_input: CaseCreate):
+async def create_case(case_input: CaseCreate, request: Request):
+    did = get_device_id(request)
     case_dict = case_input.dict()
     case_dict["id"] = str(uuid.uuid4())
+    case_dict["device_id"] = did
     case_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     now = datetime.now(timezone.utc)
-    count = await db.cases.count_documents({})
+    count = await db.cases.count_documents({"device_id": did})
     case_dict["receipt_no"] = f"REC-{now.strftime('%d%m')}-{count + 1:03d}"
     await db.cases.insert_one(case_dict)
-    return CaseResponse(**{k: v for k, v in case_dict.items() if k != "_id"})
+    return CaseResponse(**{k: v for k, v in case_dict.items() if k not in ("_id", "device_id")})
 
 
 def _filter_cases_by_period(cases, period, year, quarter):
@@ -203,82 +219,63 @@ def _filter_cases_by_period(cases, period, year, quarter):
 
 
 @api_router.get("/cases/export/csv")
-async def export_cases_csv(
-    period: str = Query("all"),
-    year: int = Query(0),
-    quarter: int = Query(0),
-):
-    cases = await db.cases.find({}, {"_id": 0}).sort("created_at", -1).to_list(10000)
+async def export_cases_csv(request: Request, period: str = Query("all"), year: int = Query(0), quarter: int = Query(0)):
+    did = get_device_id(request)
+    cases = await db.cases.find({"device_id": did}, {"_id": 0, "device_id": 0}).sort("created_at", -1).to_list(10000)
     cases = _filter_cases_by_period(cases, period, year, quarter)
-
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "Receipt No", "Date", "Patient Name", "Age", "Gender", "Surgery",
-        "Surgeon", "Hospital", "Anaesthesia Type", "Fees",
-        "Payment Status", "Mode of Payment", "Notes"
-    ])
+    writer.writerow(["Receipt No", "Date", "Patient Name", "Age", "Gender", "Surgery", "Surgeon", "Hospital", "Anaesthesia Type", "Fees", "Payment Status", "Mode of Payment", "Notes"])
     for c in cases:
-        writer.writerow([
-            c.get("receipt_no", ""), c.get("date", ""),
-            c.get("patient_name", ""), c.get("age", ""),
-            c.get("gender", ""), c.get("surgery_name", ""),
-            c.get("surgeon_name", ""), c.get("hospital", ""),
-            c.get("anaesthesia_type", ""), c.get("anaesthesia_fees", ""),
-            c.get("payment_status", "pending"), c.get("mode_of_payment", "Cash"),
-            c.get("notes", "")
-        ])
-
+        writer.writerow([c.get("receipt_no", ""), c.get("date", ""), c.get("patient_name", ""), c.get("age", ""), c.get("gender", ""), c.get("surgery_name", ""), c.get("surgeon_name", ""), c.get("hospital", ""), c.get("anaesthesia_type", ""), c.get("anaesthesia_fees", ""), c.get("payment_status", "pending"), c.get("mode_of_payment", "Cash"), c.get("notes", "")])
     label = "all"
     if period == "quarterly":
         label = f"Q{quarter}_{year}"
     elif period == "yearly":
         label = str(year)
-
-    return Response(
-        content=output.getvalue(),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=cases_{label}.csv"}
-    )
+    return Response(content=output.getvalue(), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename=cases_{label}.csv"})
 
 
 @api_router.get("/cases", response_model=List[CaseResponse])
-async def get_cases():
-    cases = await db.cases.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+async def get_cases(request: Request):
+    did = get_device_id(request)
+    cases = await db.cases.find({"device_id": did}, {"_id": 0, "device_id": 0}).sort("created_at", -1).to_list(1000)
     return [CaseResponse(**c) for c in cases]
 
 
 @api_router.get("/cases/{case_id}", response_model=CaseResponse)
-async def get_case(case_id: str):
-    case = await db.cases.find_one({"id": case_id}, {"_id": 0})
+async def get_case(case_id: str, request: Request):
+    did = get_device_id(request)
+    case = await db.cases.find_one({"id": case_id, "device_id": did}, {"_id": 0, "device_id": 0})
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     return CaseResponse(**case)
 
 
 @api_router.delete("/cases/{case_id}")
-async def delete_case(case_id: str):
-    result = await db.cases.delete_one({"id": case_id})
+async def delete_case(case_id: str, request: Request):
+    did = get_device_id(request)
+    result = await db.cases.delete_one({"id": case_id, "device_id": did})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     return {"message": "Case deleted"}
 
 
 @api_router.patch("/cases/{case_id}/payment-status")
-async def update_payment_status(case_id: str, update: PaymentStatusUpdate):
+async def update_payment_status(case_id: str, update: PaymentStatusUpdate, request: Request):
+    did = get_device_id(request)
     if update.payment_status not in ["paid", "pending"]:
         raise HTTPException(status_code=400, detail="Status must be 'paid' or 'pending'")
-    result = await db.cases.update_one(
-        {"id": case_id}, {"$set": {"payment_status": update.payment_status}}
-    )
+    result = await db.cases.update_one({"id": case_id, "device_id": did}, {"$set": {"payment_status": update.payment_status}})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     return {"message": "Status updated", "payment_status": update.payment_status}
 
 
 @api_router.get("/analytics")
-async def get_analytics():
-    cases = await db.cases.find({}, {"_id": 0}).to_list(10000)
+async def get_analytics(request: Request):
+    did = get_device_id(request)
+    cases = await db.cases.find({"device_id": did}, {"_id": 0}).to_list(10000)
     now = datetime.now(timezone.utc)
     current_month = now.month
     current_year = now.year
@@ -311,39 +308,22 @@ async def get_analytics():
             for f in ["total_cases", "total_fees", "received", "pending"]:
                 year_stats[f] += val[f]
     sorted_monthly = sorted(monthly.values(), key=lambda x: x["month"], reverse=True)
-    return {
-        "current_month": current_month_stats,
-        "current_year": year_stats,
-        "monthly_breakdown": sorted_monthly,
-    }
+    return {"current_month": current_month_stats, "current_year": year_stats, "monthly_breakdown": sorted_monthly}
 
 
 @api_router.delete("/reset-all-data")
-async def reset_all_data():
-    r1 = await db.cases.delete_many({})
-    r2 = await db.doctor_profile.delete_many({})
-    r3 = await db.hospitals.delete_many({})
-    r4 = await db.surgeons.delete_many({})
-    return {
-        "message": "All data cleared",
-        "deleted": {
-            "cases": r1.deleted_count,
-            "profiles": r2.deleted_count,
-            "hospitals": r3.deleted_count,
-            "surgeons": r4.deleted_count,
-        }
-    }
+async def reset_all_data(request: Request):
+    did = get_device_id(request)
+    r1 = await db.cases.delete_many({"device_id": did})
+    r2 = await db.doctor_profile.delete_many({"device_id": did})
+    r3 = await db.hospitals.delete_many({"device_id": did})
+    r4 = await db.surgeons.delete_many({"device_id": did})
+    return {"message": "All data cleared", "deleted": {"cases": r1.deleted_count, "profiles": r2.deleted_count, "hospitals": r3.deleted_count, "surgeons": r4.deleted_count}}
 
 
 app.include_router(api_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

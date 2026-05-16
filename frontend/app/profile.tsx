@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/api';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
@@ -26,7 +27,7 @@ export default function Profile() {
 
   const fetchProfile = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/doctor-profile`);
+      const res = await apiFetch('/api/doctor-profile');
       const data = await res.json();
       if (data.name) setName(data.name);
       if (data.degree) setDegree(data.degree);
@@ -85,7 +86,7 @@ export default function Profile() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const res = await fetch(`${BACKEND_URL}/api/reset-all-data`, { method: 'DELETE' });
+              const res = await apiFetch('/api/reset-all-data', { method: 'DELETE' });
               const data = await res.json();
               Alert.alert('Done', `Cleared: ${data.deleted.cases} cases, ${data.deleted.hospitals} hospitals, ${data.deleted.surgeons} surgeons`);
               setName(''); setDegree(''); setRegistrationNo(''); setDesignation('Consultant Anaesthesiologist'); setCity(''); setSignatureBase64('');
@@ -102,7 +103,7 @@ export default function Profile() {
     if (!name.trim()) return Alert.alert('Required', 'Doctor name is required');
     setSaving(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/doctor-profile`, {
+      const res = await apiFetch('/api/doctor-profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

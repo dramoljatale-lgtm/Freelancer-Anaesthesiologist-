@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { formatINR } from '../utils/helpers';
+import { apiFetch } from '../utils/api';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -55,7 +56,7 @@ export default function CasesList() {
 
   const fetchCases = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/cases`);
+      const res = await apiFetch('/api/cases');
       setCases(await res.json());
     } catch (err) { console.error(err); }
     finally { setLoading(false); setRefreshing(false); }
@@ -93,8 +94,8 @@ export default function CasesList() {
   const handleCSV = async (opt: typeof CSV_OPTIONS[0]) => {
     setCsvLoading(opt.label);
     try {
-      const url = `${BACKEND_URL}/api/cases/export/csv?period=${opt.period}&year=${opt.year}&quarter=${opt.quarter}`;
-      const res = await fetch(url);
+      const url = `/api/cases/export/csv?period=${opt.period}&year=${opt.year}&quarter=${opt.quarter}`;
+      const res = await apiFetch(url);
       const csvText = await res.text();
       if (Platform.OS === 'web') {
         const blob = new Blob([csvText], { type: 'text/csv' });

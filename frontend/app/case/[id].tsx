@@ -55,7 +55,7 @@ export default function CaseDetail() {
 
   const fetchCase = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/cases/${id}`);
+      const res = await apiFetch(`/api/cases/${id}`);
       if (!res.ok) throw new Error('Not found');
       setCaseData(await res.json());
     } catch {
@@ -65,7 +65,7 @@ export default function CaseDetail() {
 
   const fetchDoctor = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/doctor-profile`);
+      const res = await apiFetch(`/api/doctor-profile`);
       const data = await res.json();
       if (data.name) setDoctor(data);
     } catch {}
@@ -76,7 +76,7 @@ export default function CaseDetail() {
     const newStatus = caseData.payment_status === 'paid' ? 'pending' : 'paid';
     setStatusLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/cases/${id}/payment-status`, {
+      const res = await apiFetch(`/api/cases/${id}/payment-status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payment_status: newStatus }),
@@ -98,7 +98,7 @@ export default function CaseDetail() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await fetch(`${BACKEND_URL}/api/cases/${id}`, { method: 'DELETE' });
+            await apiFetch(`/api/cases/${id}`, { method: 'DELETE' });
             router.back();
           } catch {
             Alert.alert('Error', 'Failed to delete case');

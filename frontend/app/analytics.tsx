@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/api';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
@@ -24,7 +25,7 @@ export default function Analytics() {
 
   const fetchAnalytics = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/analytics`);
+      const res = await apiFetch('/api/analytics');
       const json = await res.json();
       setData(json);
     } catch (err) {

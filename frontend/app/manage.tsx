@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, TextInput, StyleSheet,
@@ -26,8 +27,8 @@ export default function Manage() {
   const fetchData = async () => {
     try {
       const [hRes, sRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/api/hospitals`),
-        fetch(`${BACKEND_URL}/api/surgeons`),
+        apiFetch('/api/hospitals'),
+        apiFetch('/api/surgeons'),
       ]);
       setHospitals(await hRes.json());
       setSurgeons(await sRes.json());
@@ -43,7 +44,7 @@ export default function Manage() {
     if (!newName.trim()) return;
     setAdding(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/${endpoint}`, {
+      const res = await apiFetch(`/api/${endpoint}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName.trim() }),
       });
@@ -65,7 +66,7 @@ export default function Manage() {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           try {
-            await fetch(`${BACKEND_URL}/api/${endpoint}/${item.id}`, { method: 'DELETE' });
+            await apiFetch(`/api/${endpoint}/${item.id}`, { method: 'DELETE' });
             if (tab === 'hospitals') {
               setHospitals(prev => prev.filter(h => h.id !== item.id));
             } else {

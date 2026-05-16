@@ -10,6 +10,7 @@ import CustomPicker from '../components/CustomPicker';
 import AddablePicker from '../components/AddablePicker';
 import ISARVGCalculator, { ISARVGDetailsType } from '../components/ISARVGCalculator';
 import { formatINR } from '../utils/helpers';
+import { apiFetch } from '../utils/api';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -60,12 +61,12 @@ export default function AddCase() {
   const [surgeons, setSurgeons] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/hospitals`).then(r => r.json()).then(setHospitals).catch(() => {});
-    fetch(`${BACKEND_URL}/api/surgeons`).then(r => r.json()).then(setSurgeons).catch(() => {});
+    apiFetch('/api/hospitals').then(r => r.json()).then(setHospitals).catch(() => {});
+    apiFetch('/api/surgeons').then(r => r.json()).then(setSurgeons).catch(() => {});
   }, []);
 
   const addHospital = async (name: string) => {
-    const res = await fetch(`${BACKEND_URL}/api/hospitals`, {
+    const res = await apiFetch('/api/hospitals', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
     });
     const data = await res.json();
@@ -73,7 +74,7 @@ export default function AddCase() {
   };
 
   const addSurgeon = async (name: string) => {
-    const res = await fetch(`${BACKEND_URL}/api/surgeons`, {
+    const res = await apiFetch('/api/surgeons', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
     });
     const data = await res.json();
@@ -94,7 +95,7 @@ export default function AddCase() {
     setSaving(true);
     setSavingStatus(paymentStatus);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/cases`, {
+      const res = await apiFetch('/api/cases', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patient_name: patientName.trim(), age: parseInt(age) || 0, gender,
